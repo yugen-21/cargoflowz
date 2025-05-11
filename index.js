@@ -14,6 +14,9 @@ const enquiryRoutes = require("./routes/enquiryRoutes");
 const responseRoutes = require("./routes/responseRoutes");
 //Import details routes
 const detailRoutes = require("./routes/detailsRoutes");
+
+const app = express();
+const port = process.env.PORT || 3000;
 // ✅ Enable CORS for your frontend
 app.use(
   cors({
@@ -25,8 +28,6 @@ app.use(
 
 // ✅ Parse JSON requests
 app.use(express.json());
-const app = express();
-const port = process.env.PORT || 3000;
 
 // Middleware to parse JSON
 app.use(express.json());
