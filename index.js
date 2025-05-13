@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const allowedOrigins = [
-  "https://cargo-flowz-frontend-deploy.vercel.app/",
+  "https://cargo-flowz-frontend-deploy.vercel.app",
   "http://localhost:3000", // optional: for local dev
 ];
 
