@@ -1,7 +1,10 @@
+require("dotenv").config();
+const axios = require("axios");
 const Response = require("../models/responses");
 const Enquiry = require("../models/enquiries");
-const rankResponses = require("../utils/rankResponses");
 const filterMatchingResponses = require("../utils/filterResponses");
+const endpoint = process.env.ENDPOINT;
+let rankedResponses;
 class ResponseController {
   /**
    * Creates a response (quote) for an enquiry.
@@ -72,25 +75,16 @@ class ResponseController {
     }
   }
 
-  /**
-   * Fetches top 5 ranked responses for a specific enquiry.
-   * - Filters by matching origin, destination, and size.
-   * - Ranks them based on price and delivery date using a scoring algorithm.
-   */
-  static async fetchResponses(req, res) {
+  static async fetchTopResponses(req, res) {
     const { enquiry_id } = req.params;
     if (!enquiry_id) {
       return res.status(401).send("Missing enquiry ID");
     }
-
     try {
       const enquiry = await Enquiry.findOne({ where: { id: enquiry_id } });
-
       if (!enquiry) {
         return res.status(404).send("Enquiry not found");
       }
-
-      const pickup_date = enquiry.pickup_date;
 
       const responses = await Response.findAll({
         where: { enquiry_id },
@@ -101,92 +95,36 @@ class ResponseController {
           message: "No matching responses for this enquiry",
         });
       }
-
       const plainResponses = filtered.map((r) => r.toJSON());
-      const topRanked = rankResponses(plainResponses, pickup_date);
+      try {
+        const response = await axios.post(
+          `${endpoint}/rank-top5`,
+          plainResponses
+        );
 
-      res.send({ message: "Here are the top 5 responses:", topRanked });
+        const rankedIds = response.data;
+
+        console.log("Mistral AI response: ", rankedIds);
+        const responses = await Response.findAll({
+          where: { id: rankedIds },
+        });
+        const responseMap = {};
+        responses.forEach((r) => {
+          responseMap[r.id] = r.toJSON();
+        });
+
+        rankedResponses = rankedIds.map((id) => responseMap[id]);
+        return res.status(200).json({
+          message: "Top ranked responses",
+          results: rankedResponses,
+        });
+      } catch (err) {
+        console.log("Error fetching top 5: ", err.message);
+        return res.status(500).send("Failed to rank and return responses");
+      }
     } catch (err) {
-      console.error("Error fetching responses:", err);
-      res.status(500).send("Internal server error");
-    }
-  }
-
-  /**
-   * Fetches top 5 responses sorted by lowest price.
-   */
-  static async fetchResponsesPrice(req, res) {
-    const { enquiry_id } = req.params;
-    if (!enquiry_id) {
-      return res.status(401).send("Missing enquiry ID");
-    }
-
-    try {
-      const enquiry = await Enquiry.findOne({ where: { id: enquiry_id } });
-
-      if (!enquiry) {
-        return res.status(404).send("Enquiry not found");
-      }
-
-      const responses = await Response.findAll({
-        where: { enquiry_id },
-        order: [["price", "ASC"]],
-      });
-
-      const filtered = filterMatchingResponses(responses, enquiry);
-      if (filtered.length === 0) {
-        return res.status(200).send("No matching responses for this enquiry.");
-      }
-
-      // Limit to top 5
-      const top5 = filtered.slice(0, 5);
-
-      res.send({
-        message: "Here are the top 5 responses based on price:",
-        responses: top5,
-      });
-    } catch (err) {
-      console.error("Error fetching responses:", err);
-      res.status(500).send("Internal server error");
-    }
-  }
-
-  /**
-   * Fetches top 5 responses sorted by earliest delivery date.
-   */
-  static async fetchResponsesDates(req, res) {
-    const { enquiry_id } = req.params;
-    if (!enquiry_id) {
-      return res.status(401).send("Missing enquiry ID");
-    }
-
-    try {
-      const enquiry = await Enquiry.findOne({ where: { id: enquiry_id } });
-
-      if (!enquiry) {
-        return res.status(404).send("Enquiry not found");
-      }
-
-      const responses = await Response.findAll({
-        where: { enquiry_id },
-        order: [["delivery_date", "ASC"]],
-      });
-
-      const filtered = filterMatchingResponses(responses, enquiry);
-      if (filtered.length === 0) {
-        return res.status(200).send("No matching responses for this enquiry.");
-      }
-
-      // Limit to top 5
-      const top5 = filtered.slice(0, 5);
-
-      res.send({
-        message: "Here are the top 5 responses based on dates:",
-        responses: top5,
-      });
-    } catch (err) {
-      console.error("Error fetching responses:", err);
-      res.status(500).send("Internal server error");
+      console.error("Enquiry fetch error:", err.message);
+      return res.status(500).send("Server error");
     }
   }
 }

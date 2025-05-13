@@ -1,8 +1,10 @@
+require("dotenv").config();
 const Enquiry = require("../models/enquiries");
 const Users = require("../models/users");
-const { getContactsByCountry } = require("../utils/getContactsByCountry");
 const { sendEnquiryEmail } = require("../utils/sendEnquiryEmail");
 const jwt = require("jsonwebtoken");
+
+const endpoint = process.env.ENDPOINT;
 
 class EnquiryController {
   /**
@@ -65,25 +67,41 @@ class EnquiryController {
         cargo_type,
       });
 
-      //fetch all those providers and emails with country name as origin
-      const matchedProviders = await getContactsByCountry(origin);
-      console.log(matchedProviders);
-      for (let i = 0; i < matchedProviders.length; i++) {
-        var counter = matchedProviders[i];
-        console.log("Sending email to:", counter.email);
-        await sendEnquiryEmail(counter.email, {
-          provider_name: counter.name,
-          company_name: user.company_name,
-          company_email: user.email,
-          origin: origin,
-          destination: destination,
-          weight: size,
-          enquiry_id: enquiry.id,
-          provider_email: counter.email,
-        });
+      try {
+        const response = await fetch(
+          `${endpoint}/match?location=${encodeURIComponent(origin)}`
+        );
+        if (!response.ok) {
+          throw new Error(`Failed to fetch providers: ${response.statusText}`);
+        }
+
+        const matchedProviders = await response.json();
+        console.log("Matched Providers:", matchedProviders);
+        if (matchedProviders.length === 0) {
+          console.log("No matching providers found for:", origin);
+          return res
+            .status(404)
+            .send("No matching providers found for: ", origin);
+        }
+        for (let i = 0; i < matchedProviders.length; i++) {
+          var counter = matchedProviders[i];
+          console.log("Sending email to:", counter.email);
+          await sendEnquiryEmail(counter.email, {
+            provider_name: counter.name,
+            company_name: user.company_name,
+            company_email: user.email,
+            origin: origin,
+            destination: destination,
+            weight: size,
+            enquiry_id: enquiry.id,
+            provider_email: counter.email,
+          });
+        }
+        enquiry.status = "sent";
+        await enquiry.save();
+      } catch (err) {
+        console.error("Error fetching or sending emails:", err);
       }
-      enquiry.status = "sent";
-      await enquiry.save();
       return res
         .status(201)
         .json({ message: "Enquiry submitted and mails sent.", enquiry });

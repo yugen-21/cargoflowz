@@ -97,12 +97,30 @@ class UserController {
 
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) return res.status(401).send("Invalid credentials");
-
+      // {
+      //   "token": "your-jwt-token",
+      //   "user": {
+      //     "email": "user@example.com",
+      //     "company_name": "Acme Corp",
+      //     "location": "Chennai",
+      //     "industry": "Logistics",
+      //     "is_verified": true
+      //   }
+      // }
       const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, {
         expiresIn: "24h",
       });
 
-      res.json({ token });
+      res.json({
+        token: token,
+        user: {
+          email: user.email,
+          company_name: user.company_name,
+          location: user.location,
+          industry: user.industry,
+          is_verified: user.is_verified,
+        },
+      });
     } catch (err) {
       console.error("Login error:", err);
       res.status(500).send("Server error");
