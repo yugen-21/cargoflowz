@@ -4,6 +4,8 @@ const cors = require("cors");
 const allowedOrigins = [
   "https://cargo-flowz-frontend-deploy.vercel.app",
   "http://localhost:3000", // optional: for local dev
+  "https://admin.cargoflowz.com",
+  "https://main.d2mfwhn26nhgf4.amplifyapp.com"
 ];
 
 // Import authentication routes
